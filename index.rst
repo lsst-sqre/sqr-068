@@ -14,11 +14,11 @@ Sasquatch is a service for recording, displaying, and alerting on Rubin's engine
 
 It is a unification of SQuaSH :cite:`SQR-009` used for tracking science performance metrics and the Engineering and Facilities Database (EFD) :cite:`SQR-034` used to record observatory telemetry data.
 
-The main features include two-way data replication between the Summit and USDF to record science performance metrics computed at the USDF and observatory telemetry and events produced at the Summit in the same place.
+The new features include two-way data replication between the Summit and USDF Sasquatch instances to make science performance metrics computed at the USDF and observatory telemetry produced at the Summit available locally in both places.
 
-It can be easily extended to record other `time-series data`_ such as camera diagnostic metrics, rapid analysis metrics, scheduler events etc.
+Sasquatch can be easily extended to record other `time-series data`_ such as camera diagnostic metrics, rapid analysis metrics, scheduler events etc.
 
-In its third generation, we took the opportunity to rebrand the service to Sasquatch.
+In its third generation, we took the opportunity to rebrand the service as Sasquatch.
 Sasquatch is the `service` that manages the EFD and other time-series `databases`.
 
 Sasquatch is currently deployed at the test stands, Summit, and USDF through `Phalanx`_ integrated with Rubin's Science Platform.
