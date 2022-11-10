@@ -10,7 +10,7 @@
 Abstract
 ========
 
-Sasquatch is a service for recording, displaying, and alerting on Rubin's engineering data.
+Sasquatch is a service for recording, displaying, and alerting on Rubin's scalar engineering data.
 
 It is a unification of SQuaSH :cite:`SQR-009` used for tracking science performance metrics and the Engineering and Facilities Database (EFD) :cite:`SQR-034` used to record observatory telemetry data.
 
