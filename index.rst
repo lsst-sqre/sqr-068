@@ -10,18 +10,18 @@
 Abstract
 ========
 
-Sasquatch is a service for recording, displaying, and alerting on Rubin's scalar engineering data.
+Sasquatch is a service for recording, displaying, and alerting on Rubin Observatory's telemetry data and scalar metrics.
 
-It is a unification of SQuaSH :cite:`SQR-009` used for tracking science performance metrics and the Engineering and Facilities Database (EFD) :cite:`SQR-034` used to record observatory telemetry data.
+It is a unification of the Engineering and Facilities Database (EFD) :cite:`SQR-034` and SQuaSH :cite:`SQR-009` under the same deployment.
 
-The new features include two-way data replication between the Summit and USDF Sasquatch instances to make science performance metrics computed at the USDF and observatory telemetry produced at the Summit available locally in both places.
+The new features include a REST API for sending data to Sasquatch and two-way data replication between the Summit and USDF.
+This way, observatory telemetry produced at the Summit and metrics computed at the USDF or Summit are always available locally.
 
 Sasquatch can be easily extended to record other `time-series data`_ such as camera diagnostic metrics, rapid analysis metrics, scheduler events etc.
 
-In its third generation, we took the opportunity to rebrand the service as Sasquatch.
-Sasquatch is the `service` that manages the EFD and other time-series `databases`.
+In its third generation, we took the opportunity to rebrand it to Sasquatch, and it should be understood and the `service` that manages the EFD and other time-series `databases`.
 
-Sasquatch is currently deployed at the test stands, Summit, and USDF through `Phalanx`_ integrated with Rubin's Science Platform.
+Sasquatch is currently deployed at Summit, USDF, Tucson test stand and Base test stand through `Phalanx`_.
 
 .. _time-series data: https://www.influxdata.com/what-is-time-series-data
 .. _Phalanx: https://phalanx.lsst.io
@@ -29,15 +29,16 @@ Sasquatch is currently deployed at the test stands, Summit, and USDF through `Ph
 Overview
 ========
 
-Sasquatch architecture is based on `InfluxDB`_, an open-source time-series database optimized for efficient storage and analysis of time series data, and `Apache Kafka`_ which is used as a write-ahead log to InfluxDB and for data replication between sites.
+Sasquatch is based on `InfluxDB`_, an open-source time-series database optimized for efficient storage and analysis of time series data, and `Apache Kafka`_ which is used as a write-ahead log to InfluxDB and for data replication between sites.
 
-`InfluxDB OSS 2.x`_  introduces Flux as its native language combining querying and data analysis functionalities.
+We are taking the opportunity to migrate to `InfluxDB OSS 2.x`_  which uses Flux for querying and data analaysis, in addition to InfluxQL.
 This version also has a new `task engine`_ to process time-series data with Flux, and a new `Python client`_.
 
 Apache Kafka is now deployed with `Strimzi`_, a Kubernetes operator to manage the Kafka resources.
-It also brings `Kafka bridge`_, a component used in Sasquatch for connecting HTTP-based clients with Kafka.
+It also includes resources to manage Mirror Maker 2 used for data replication, which is an improvement compared to the previous deployment (see  :cite:`SQR-050`).
+In addition to `Strimzi_` components we also deploy the Confluent REST proxy, used in Sasquatch for connecting HTTP-based clients with Kafka.
 
-Figure 1 shows a diagram of the Sasquatch architecutre highlighting the new functionalities: two-way replication between the Summit and USDF; multiple InfluxDB databases; Flux Tasks; and a REST API based on Strimzi Kafka bridge.
+Figure 1 shows a diagram of the Sasquatch architecutre highlighting the new functionalities: two-way replication between the Summit and USDF; multiple InfluxDB databases; Flux Tasks; and a REST API based on the Confluent REST proxy.
 
 .. figure:: /_static/sasquatch_overview.svg
    :name: Sasquatch architecture overview.
@@ -57,33 +58,27 @@ Sending data to Sasquatch
 =========================
 
 There are two main mechanisms for sending data to Sasquatch.
-One is based on the SAL Kafka Producers (`ts_salkafka`_) and the other is based on the Strimzi Kafka Bridge REST API.
+One is based on the SAL Kafka Producers (`ts_salkafka`_) and the other is based on the Confluent REST proxy.
 
 `ts_salkafka`_ is currently used with Sasquatch at the Summit and test stands to forward DDS messages to Kafka.
-Once DDS is replaced by Kafka, ts_salkafka won't be longer necessary  :cite:`TSTN-033`.
+Once DDS is replaced by Kafka, the CSCs will write directly to Kafka and the ts_salkafka won't be necessary anymore :cite:`TSTN-033`.
 
 .. _ts_salkafka: https://ts-salkafka.lsst.io
 
-Strimzi Kafka bridge
+Confluent REST proxy
 --------------------
 
-Strimzi Kafka bridge provides a REST interface for connecting HTTP-based clients with Kafka.
+The `Confluent REST proxy`_ provides a REST interface for connecting HTTP-based clients with Kafka.
 
-With Kafka Bridge a client can send messages to or receive messages from Kafka topics using HTTP requests.
-In particular, a client can produce messages to topics in JSON format by using the `topics`_ endpoint.
+With the REST proxy, a client can produce messages to or consume messages from Kafka topics using HTTP requests which simplifies the integration with Sasquatch.
+In particular, the REST proxy integrates well with the Schema Registry and so this mechanism support sending Avro messages with an schema.
 
 Once the data lands in Kafka, an InfluxDB Sink connector is responsible for consuming the Kafka topic and writing the data to a bucket in InfluxDB.
 
-In SQuaSH we use the SQuaSH REST API to connect the `lsst.verify`_ client with InfluxDB.
-In Sasquatch, the SQuaSH REST API is replaced by the Strimzi Kafka bridge and a new InfluxDB connector.
+In addition, everything that is sent to kafka can be replicated to other sites, and
+we can also persist data into other formats like Parquet using off-the-shell Kafka connectors.
 
-A new client that needs to send data to Sasquatch would use the same pattern.
-
-In addition, because we send data to Kafka, we can easily replicated data between sites and persist data into other formats like Parquet using off-the-shell Kafka connectors.
-
-.. _topics: https://strimzi.io/docs/bridge/latest/#_send
-.. _lsst.verify: https://pipelines.lsst.io/v/daily/modules/lsst.verify
-
+.. _Confluent REST proxy: https://docs.confluent.io/platform/current/kafka-rest/
 
 Two-way replication between Summit and USDF
 ===========================================
@@ -91,10 +86,10 @@ Two-way replication between Summit and USDF
 In the current EFD implementation, data replication between the Summit and USDF is done throught the Kafka Mirror Maker 2 connector (MM2) :cite:`SQR-050`.
 
 The EFD replication service allows for one-way replication (or active/standby replication) from the Summit to the USDF.
-We have measured sub-second latency for a high throughput topic from the MTM1M3 subsystem in that set up.
+We have measured sub-second latency for high throughput topics in the MTM1M3 subsystem in this set up.
 
 In Sasquatch, two-way replication (or active/active replication) is now required.
-With two-way replication, metrics computed at USDF (e.g. from Prompt Processing), for example, are sent to the USDF instance of Sasquatch and replicated to the Summit.
+With two-way replication, metrics computed at USDF (e.g. from Prompt Processing), for example, sent to the USDF instance of Sasquatch can be replicated to the Summit.
 
 In addition to the instance of MM2 configured at USDF to replicate Observatory telemetry, events and metrics from the Summit, Sasquatch adds a second instance of MM2 at the Summit.
 
@@ -103,8 +98,8 @@ The Kafka Topics to be replicated are listed in the MM2 configuration on each Ka
 Two-way replication requires Kafka Topic renaming.
 Usually, in this scenario, the Kafka Topic at the destination cluster is prefixed with the name of the source cluster.
 That helps to identify its origin and avoid replicating it back to the source cluster.
-Consequently, any topic schemas at the destination cluster need to be translated adding more complexity compared to the one-way replication scenario.
 
+Consequently, topic schemas at the destination cluster need to be renamed adding some complexity compared to the one-way replication scneario.
 
 Storing telemetry, metrics and events into multiple databases
 =============================================================
@@ -121,13 +116,6 @@ In particular, because the time difference between events is not regular, they n
 .. _bucket: https://docs.influxdata.com/influxdb/latest/organizations/buckets/
 .. _buckets API: https://docs.influxdata.com/influxdb/latest/api/#tag/Buckets
 
-Mapping Kafka topics to connector instances and buckets
--------------------------------------------------------
-
-When using the Strimzi Kafka bridge it makes sense to map Kafka topics to connector instances and buckets.
-
-For example, the ``analysis_tools`` topic in Kafka holds the ``lsst.verify`` measurements.
-The ``analysis_tools`` connector instance is configured to extract the measurements and metadata from Kafka and write them to the ``analysis_tools`` bucket in InfluxDB.
 
 Flux Tasks
 ==========
@@ -150,7 +138,6 @@ Implementation phases
 =====================
 
 This section describes the Sasquatch implementation phases.
-As of August 2022 we are completing phase 1 and starting phase 2.
 
 Phase 1 - Replace EFD deployments
 ---------------------------------
@@ -172,7 +159,7 @@ Phase 1 - Replace EFD deployments
 #. Deploy Sasquatch at the Summit (Yagan cluster).
 #. Migrate EFD data from the efd-temp-k3s.cp.lsst.org server to Sasquatch at the Summit.
 #. Implement data replication bewteen Sasquatch at the Summit and USDF with Strimzi Kafka.
-#. Deploy Sasquatch at the BTS (Antus cluster).
+#. Deploy Sasquatch at the BTS (Manke cluster).
 
 Related goals
 ^^^^^^^^^^^^^
@@ -180,15 +167,14 @@ Related goals
 #. Archive argocd-efd deployment repo, everything is in Phalanx.
 #. Remove EFD related charts from the SQuaRE charts repo.
 #. Decomissioning efd-temp-k3s.cp.lsst.org cluster.
-#. Migrate USDF deployment from NCSA to SLAC.
+#. Migrate EFD data from NCSA to SLAC.
 
 Phase 2 - Replace the SQuaSH deployment
 ---------------------------------------
 
-#. Implement Strimzi Kafka bridge as a replacement for the SQuaSH API in Sasquatch.
-#. Configure InfluxDB Sink connector to parse ``lsst.verify`` job messages.
+#. Implement Confluent REST proxy as a replacement for the SQuaSH API in Sasquatch.
+#. Implement a Butler data store for Sasquatch.
 #. Implement two-way replication in Sasquatch.
-#. Deploy Sasquatch on IDF int.
 #. Migrate SQuaSH data to Sasquatch at USDF.
 
 Related goals
@@ -201,10 +187,10 @@ Phase 3 - Migration to InfluxDB OSS 2.x
 ---------------------------------------
 
 #. Add InfluxDB OSS 2.x to Sasquatch deployment.
-#. Test InfluxDB Sink connector with InfluxDB OSS 2.x.
+#. Connect Chronograf with InfluxDB OSS 2.x (rquires DBRP mapping).
+#. Replace InfluxDB Sink connector with Telegraf Kafka Consumer so it works with InfluxDB OSS 2.x.
 #. Migrate EFD database to 2.x format (TTS, BTS, Summit, USDF).
 #. Exercise InfluxDB OSS 2.x backup/restore tools.
-#. Connect Chronograf with InfluxDB OSS 2.x (rquires DBRP mapping).
 #. Migrate Kapacitor alerts to Flux tasks.
 #. Migrate Chronograf 1.x annotations (``_chronograf`` database) to InfluxDB 2.x.
 #. Upgrage EFD client to use the InfluxDB OSS 2.x Python client.
